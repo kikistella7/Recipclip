@@ -1,322 +1,368 @@
 <!DOCTYPE html>
+
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>레시피 북</title>
-
-  <!-- PWA -->
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#2C2417" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="레시피북" />
-
-  <!-- Apple Touch Icon (fallback emoji-based) -->
   <link rel="apple-touch-icon" href="/icon-192.png" />
-
-  <!-- React + Babel -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
     html, body, #root { height: 100%; }
-    body {
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #F2EFE9;
-      overscroll-behavior: none;
-    }
+    body { font-family: 'Pretendard', -apple-system, sans-serif; background: #F2EFE9; overscroll-behavior: none; }
     ::-webkit-scrollbar { display: none; }
-
     .card { transition: transform 0.13s ease; }
     .card:active { transform: scale(0.97); }
-    .cat-btn { transition: all 0.18s ease; white-space: nowrap; }
-    .fab { transition: transform 0.13s ease; box-shadow: 0 4px 20px rgba(44,36,23,0.35); }
-    .fab:active { transform: scale(0.9); }
-
-    .sheet-enter { animation: slideUp 0.38s cubic-bezier(0.32, 0.72, 0, 1); }
+    .fab { transition: transform 0.13s ease; }
+    .fab:active { transform: scale(0.9) !important; }
+    .sheet-enter { animation: slideUp 0.36s cubic-bezier(0.32,0.72,0,1); }
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    .detail-enter { animation: fadeSlideUp 0.28s ease; }
-    @keyframes fadeSlideUp { from { opacity:0; transform: translateY(24px); } to { opacity:1; transform: translateY(0); } }
-
-    .url-input { font-family: inherit; }
-    .url-input::placeholder { color: #C4BAB0; }
-    .url-input:focus { border-color: #2C2417 !important; outline: none; }
-
-    /* iOS safe area */
-    .safe-top { padding-top: max(48px, env(safe-area-inset-top)); }
-    .safe-bottom { padding-bottom: max(36px, env(safe-area-inset-bottom)); }
+    input::placeholder { color: #C4BAB0; }
+    input:focus { border-color: #2C2417 !important; outline: none; }
+    .cat-btn { transition: all 0.15s ease; white-space: nowrap; }
   </style>
 </head>
 <body>
 <div id="root"></div>
-
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
-const CATEGORIES = ["전체","한식","양식","일식","중식","베이킹","샐러드","간식","기타"];
-const CAT_EMOJI = { "한식":"🍲","양식":"🍝","일식":"🍣","중식":"🥢","베이킹":"🧁","샐러드":"🥗","간식":"🍿","기타":"🍽️" };
-const FOOD_EMOJIS = ["🍜","🍱","🥘","🍛","🥗","🍝","🍲","🥩","🍗","🧆","🥞","🍳"];
-const DIFF_COLOR = { "쉬움":"#34C759","보통":"#FF9500","어려움":"#FF3B30" };
+const CATS = [“전체”,“한식”,“양식”,“일식”,“중식”,“베이킹”,“샐러드”,“간식”,“기타”];
+const CAT_EMOJI = {“한식”:“🍲”,“양식”:“🍝”,“일식”:“🍣”,“중식”:“🥢”,“베이킹”:“🧁”,“샐러드”:“🥗”,“간식”:“🍿”,“기타”:“🍽️”};
+const FOOD_EMOJIS = [“🍜”,“🍱”,“🥘”,“🍛”,“🥗”,“🍝”,“🍲”,“🥩”,“🍗”,“🧆”,“🥞”,“🍳”,“🫕”,“🥙”,“🧇”,“🍤”];
+const DIFF_COLOR = {“쉬움”:”#34C759”,“보통”:”#FF9500”,“어려움”:”#FF3B30”};
 
-function loadRecipes() {
-  try { return JSON.parse(localStorage.getItem("recipebook_v1") || "[]"); } catch { return []; }
+// URL에서 사람이 읽을 수 있는 제목 추출
+function guessTitle(url) {
+try {
+const u = new URL(url.includes(”://”) ? url : “https://”+url);
+const domain = u.hostname.replace(“www.”,””).replace(”.com”,””).replace(”.co.kr”,””).replace(”.kr”,””);
+const path = u.pathname.replace(///g,” “).replace(/-/g,” “).replace(/_/g,” “).trim();
+const clean = path.split(” “).filter(p=>p&&!/^\d+$/.test(p)).slice(0,4).join(” “);
+
+```
+// 도메인별 이름 힌트
+const domainMap = {
+  "10000recipe": "만개의레시피",
+  "recipe.naver": "네이버 레시피",
+  "youtube": "유튜브",
+  "youtu": "유튜브",
+  "cookinglog": "쿠킹로그",
+  "omelet": "오믈렛",
+  "food.naver": "네이버 푸드",
+  "haemukja": "해먹남녀",
+  "instagram": "인스타그램",
+};
+const domainKey = Object.keys(domainMap).find(k => domain.includes(k));
+const siteName = domainMap[domainKey] || domain;
+
+return clean ? `${siteName} - ${clean}` : siteName;
+```
+
+} catch {
+return “레시피”;
 }
-function saveRecipes(r) {
-  localStorage.setItem("recipebook_v1", JSON.stringify(r));
 }
 
-async function extractRecipeInfo(url, apiKey) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({
-      model: "claude-opus-4-5",
-      max_tokens: 600,
-      messages: [{ role: "user", content:
-        `이 URL을 보고 어떤 요리 레시피인지 정보를 추출해줘. URL 패턴과 일반 지식으로 추측해도 돼.\n\nURL: ${url}\n\n아래 JSON 형식으로만 답해. 다른 텍스트 없이:\n{"title":"요리이름(한국어)","description":"짧은설명 1줄","category":"한식|양식|일식|중식|베이킹|샐러드|간식|기타 중 하나","cookTime":"예: 30분","difficulty":"쉬움|보통|어려움","emoji":"관련 음식 이모지 하나"}`
-      }]
-    })
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  const text = data.content?.[0]?.text || "{}";
-  return JSON.parse(text.replace(/```json|```/g,"").trim());
+function randomEmoji() {
+return FOOD_EMOJIS[Math.floor(Math.random()*FOOD_EMOJIS.length)];
 }
 
-function ApiKeySetup({ onSave }) {
-  const [key, setKey] = useState("");
-  return (
-    <div style={{ minHeight:"100vh", background:"#F2EFE9", display:"flex", flexDirection:"column", justifyContent:"center", padding:"0 28px" }}>
-      <div style={{ textAlign:"center", marginBottom:32 }}>
-        <div style={{ fontSize:64, marginBottom:12 }}>📖</div>
-        <h1 style={{ fontSize:28, fontWeight:800, color:"#2C2417", marginBottom:8 }}>레시피 북</h1>
-        <p style={{ fontSize:15, color:"#8B7D6A", lineHeight:1.6 }}>
-          레시피 링크를 저장하고<br/>나만의 요리책을 만들어요
-        </p>
-      </div>
-      <div style={{ background:"#fff", borderRadius:20, padding:"24px 20px", boxShadow:"0 2px 20px rgba(44,36,23,0.08)" }}>
-        <p style={{ fontSize:13, fontWeight:700, color:"#6B5E4A", marginBottom:8, letterSpacing:0.5 }}>ANTHROPIC API KEY</p>
-        <input
-          className="url-input"
-          type="password"
-          value={key}
-          onChange={e => setKey(e.target.value)}
-          placeholder="sk-ant-..."
-          style={{ width:"100%", padding:"14px 14px", borderRadius:12, border:"2px solid #EDE8E0", fontSize:15, color:"#2C2417", background:"#F9F7F4" }}
-        />
-        <p style={{ fontSize:12, color:"#A8997E", marginTop:8, lineHeight:1.5 }}>
-          키는 이 기기에만 저장되며 외부로 전송되지 않아요.<br/>
-          <a href="https://console.anthropic.com/keys" target="_blank" style={{ color:"#2C2417", fontWeight:600 }}>console.anthropic.com</a>에서 발급
-        </p>
-        <button
-          onClick={() => { if(key.trim()) { localStorage.setItem("recipebook_apikey", key.trim()); onSave(key.trim()); }}}
-          disabled={!key.trim()}
-          style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", background: key.trim()?"#2C2417":"#E0D8CE", color: key.trim()?"#F2EFE9":"#A8997E", fontSize:16, fontWeight:700, cursor: key.trim()?"pointer":"not-allowed", marginTop:16 }}
-        >시작하기 →</button>
-      </div>
-    </div>
-  );
+function load() {
+try { return JSON.parse(localStorage.getItem(“recipebook_v3”)||”[]”); } catch { return []; }
 }
 
 function App() {
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("recipebook_apikey") || "");
-  const [recipes, setRecipes] = useState(loadRecipes);
-  const [activeCat, setActiveCat] = useState("전체");
-  const [showAdd, setShowAdd] = useState(false);
-  const [showDetail, setShowDetail] = useState(null);
-  const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+const [recipes, setRecipes] = useState(load);
+const [activeCat, setActiveCat] = useState(“전체”);
+const [showAdd, setShowAdd] = useState(false);
+const [detail, setDetail] = useState(null);
+// 편집 상태
+const [editingId, setEditingId] = useState(null);
 
-  useEffect(() => { saveRecipes(recipes); }, [recipes]);
+useEffect(()=>{ localStorage.setItem(“recipebook_v3”, JSON.stringify(recipes)); }, [recipes]);
 
-  if (!apiKey) return <ApiKeySetup onSave={setApiKey} />;
+const filtered = activeCat===“전체” ? recipes : recipes.filter(r=>r.category===activeCat);
 
-  const filtered = activeCat === "전체" ? recipes : recipes.filter(r => r.category === activeCat);
+const handleAdd = (url) => {
+let u = url.trim();
+if (!u) return;
+if (!u.startsWith(“http”)) u = “https://”+u;
+const recipe = {
+id: Date.now().toString(),
+url: u,
+title: guessTitle(u),
+category: “기타”,
+emoji: randomEmoji(),
+savedAt: new Date().toLocaleDateString(“ko-KR”),
+};
+setRecipes(p=>[recipe,…p]);
+setShowAdd(false);
+};
 
-  const handleAdd = async () => {
-    if (!url.trim()) return;
-    let u = url.trim();
-    if (!u.startsWith("http")) u = "https://" + u;
-    setLoading(true); setError("");
-    try {
-      const info = await extractRecipeInfo(u, apiKey);
-      const recipe = {
-        id: Date.now().toString(), url: u,
-        title: info.title || "레시피",
-        description: info.description || "",
-        category: info.category || "기타",
-        cookTime: info.cookTime || "",
-        difficulty: info.difficulty || "보통",
-        emoji: info.emoji || FOOD_EMOJIS[Math.floor(Math.random()*FOOD_EMOJIS.length)],
-        savedAt: new Date().toLocaleDateString("ko-KR"),
-      };
-      setRecipes(p => [recipe, ...p]);
-      setUrl(""); setShowAdd(false);
-    } catch(e) {
-      setError("정보를 가져오지 못했어요. API 키나 URL을 확인해보세요.");
-    }
-    setLoading(false);
-  };
+const handleUpdate = (id, changes) => {
+setRecipes(p=>p.map(r=>r.id===id?{…r,…changes}:r));
+setDetail(prev=>prev?{…prev,…changes}:prev);
+};
 
-  const deleteRecipe = id => { setRecipes(p => p.filter(r => r.id !== id)); setShowDetail(null); };
+const handleDelete = (id) => {
+setRecipes(p=>p.filter(r=>r.id!==id));
+setDetail(null);
+};
 
-  return (
-    <div style={{ minHeight:"100vh", background:"#F2EFE9", maxWidth:430, margin:"0 auto", position:"relative" }}>
+return (
+<div style={{minHeight:“100vh”,background:”#F2EFE9”,maxWidth:430,margin:“0 auto”,position:“relative”}}>
 
-      {/* Header */}
-      <div className="safe-top" style={{ padding:"0 20px 0", background:"#F2EFE9" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", paddingTop:8, paddingBottom:4 }}>
-          <div>
-            <p style={{ fontSize:11, color:"#A8997E", fontWeight:600, letterSpacing:1.8, textTransform:"uppercase", marginBottom:4 }}>My Kitchen</p>
-            <h1 style={{ fontSize:28, fontWeight:800, color:"#2C2417", letterSpacing:-0.5 }}>레시피 북</h1>
-          </div>
-          <div style={{ textAlign:"right", paddingBottom:4 }}>
-            <span style={{ fontSize:26 }}>📖</span>
-            <p style={{ fontSize:11, color:"#A8997E", marginTop:2 }}>{recipes.length}개 저장됨</p>
-          </div>
-        </div>
-
-        {/* Categories */}
-        <div style={{ display:"flex", gap:8, overflowX:"auto", padding:"12px 0 16px", margin:"0 -20px", paddingLeft:20, paddingRight:20 }}>
-          {CATEGORIES.map(cat => (
-            <button key={cat} className="cat-btn" onClick={() => setActiveCat(cat)} style={{
-              padding:"8px 15px", borderRadius:100, border:"none", cursor:"pointer",
-              fontSize:13, fontWeight:600, flexShrink:0,
-              background: activeCat===cat ? "#2C2417" : "#E8E3DA",
-              color: activeCat===cat ? "#F2EFE9" : "#6B5E4A",
-            }}>
-              {cat!=="전체" && CAT_EMOJI[cat]+" "}{cat}
-            </button>
-          ))}
-        </div>
+```
+  {/* Header */}
+  <div style={{
+    paddingTop:"max(52px, env(safe-area-inset-top, 0px) + 16px)",
+    padding:"max(52px, env(safe-area-inset-top, 0px) + 16px) 20px 0"
+  }}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",paddingBottom:4}}>
+      <div>
+        <p style={{fontSize:11,color:"#A8997E",fontWeight:600,letterSpacing:1.8,textTransform:"uppercase",marginBottom:4}}>My Kitchen</p>
+        <h1 style={{fontSize:28,fontWeight:800,color:"#2C2417",letterSpacing:-0.5}}>레시피 북</h1>
       </div>
-
-      {/* List */}
-      <div style={{ padding:"0 16px 100px" }}>
-        {filtered.length === 0 ? (
-          <div style={{ textAlign:"center", padding:"70px 20px", color:"#A8997E" }}>
-            <div style={{ fontSize:52, marginBottom:12 }}>🍽️</div>
-            <p style={{ fontSize:17, fontWeight:700, color:"#6B5E4A", marginBottom:6 }}>아직 저장된 레시피가 없어요</p>
-            <p style={{ fontSize:14, lineHeight:1.6 }}>아래 + 버튼으로<br/>레시피 링크를 추가해보세요</p>
-          </div>
-        ) : filtered.map(r => (
-          <div key={r.id} className="card" onClick={() => setShowDetail(r)} style={{
-            background:"#fff", borderRadius:18, padding:"16px", marginBottom:10,
-            boxShadow:"0 2px 10px rgba(44,36,23,0.06)", cursor:"pointer",
-            display:"flex", gap:12, alignItems:"flex-start"
-          }}>
-            <div style={{ width:52, height:52, borderRadius:14, background:"#F2EFE9", display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, flexShrink:0 }}>
-              {r.emoji}
-            </div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <p style={{ fontSize:15, fontWeight:700, color:"#2C2417", lineHeight:1.3, marginBottom:4, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{r.title}</p>
-              {r.description && <p style={{ fontSize:12, color:"#8B7D6A", lineHeight:1.4, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:1, WebkitBoxOrient:"vertical", marginBottom:8 }}>{r.description}</p>}
-              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                <span style={{ fontSize:11, fontWeight:600, color:"#A8997E", background:"#F2EFE9", padding:"3px 9px", borderRadius:100 }}>{CAT_EMOJI[r.category]} {r.category}</span>
-                {r.cookTime && <span style={{ fontSize:11, fontWeight:600, color:"#A8997E", background:"#F2EFE9", padding:"3px 9px", borderRadius:100 }}>⏱ {r.cookTime}</span>}
-                <span style={{ fontSize:11, fontWeight:600, color:DIFF_COLOR[r.difficulty], background:(DIFF_COLOR[r.difficulty]||"#ccc")+"20", padding:"3px 9px", borderRadius:100 }}>{r.difficulty}</span>
-              </div>
-            </div>
-            <span style={{ color:"#D4C9B5", fontSize:18, paddingTop:2 }}>›</span>
-          </div>
-        ))}
+      <div style={{textAlign:"right"}}>
+        <span style={{fontSize:26}}>📖</span>
+        <p style={{fontSize:11,color:"#A8997E",marginTop:2}}>{recipes.length}개 저장됨</p>
       </div>
-
-      {/* FAB */}
-      <button className="fab" onClick={() => setShowAdd(true)} style={{
-        position:"fixed", bottom:"max(28px, env(safe-area-inset-bottom, 0px) + 20px)",
-        right:"50%", transform:"translateX(50%) translateX(90px)",
-        width:58, height:58, borderRadius:29, border:"none",
-        background:"#2C2417", color:"#F2EFE9", fontSize:26, cursor:"pointer",
-        display:"flex", alignItems:"center", justifyContent:"center"
-      }}>+</button>
-
-      {/* Add Sheet */}
-      {showAdd && (
-        <div style={{ position:"fixed", inset:0, zIndex:50 }}>
-          <div onClick={() => { setShowAdd(false); setUrl(""); setError(""); }} style={{ position:"absolute", inset:0, background:"rgba(44,36,23,0.4)" }} />
-          <div className="sheet-enter" style={{
-            position:"absolute", bottom:0, left:"50%", transform:"translateX(-50%)",
-            width:"100%", maxWidth:430, background:"#fff",
-            borderRadius:"26px 26px 0 0", padding:"0 24px",
-            paddingBottom:"max(36px, env(safe-area-inset-bottom, 0px) + 20px)"
-          }}>
-            <div style={{ width:36, height:4, background:"#E0D8CE", borderRadius:2, margin:"12px auto 22px" }} />
-            <h2 style={{ fontSize:21, fontWeight:800, color:"#2C2417", marginBottom:5 }}>레시피 추가</h2>
-            <p style={{ fontSize:13, color:"#A8997E", marginBottom:18 }}>링크만 붙여넣으면 자동으로 정보를 가져와요</p>
-            <input
-              className="url-input"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              onKeyDown={e => e.key==="Enter" && handleAdd()}
-              placeholder="https://recipe.naver.com/..."
-              autoFocus
-              style={{ width:"100%", padding:"15px 14px", borderRadius:13, border:"2px solid #EDE8E0", fontSize:15, color:"#2C2417", background:"#F9F7F4", transition:"border-color 0.2s" }}
-            />
-            {error && <p style={{ fontSize:12, color:"#FF3B30", marginTop:8 }}>{error}</p>}
-            <button onClick={handleAdd} disabled={loading||!url.trim()} style={{
-              width:"100%", padding:"16px", borderRadius:14, border:"none", marginTop:12,
-              background: loading||!url.trim() ? "#E0D8CE" : "#2C2417",
-              color: loading||!url.trim() ? "#A8997E" : "#F2EFE9",
-              fontSize:16, fontWeight:700, cursor: loading||!url.trim() ? "not-allowed" : "pointer"
-            }}>
-              {loading ? "분석 중... ✨" : "레시피 저장하기"}
-            </button>
-            <p style={{ textAlign:"center", fontSize:11, color:"#C4BAB0", marginTop:10 }}>네이버 레시피, 만개의 레시피, 유튜브 등 모든 링크 지원</p>
-          </div>
-        </div>
-      )}
-
-      {/* Detail Sheet */}
-      {showDetail && (
-        <div style={{ position:"fixed", inset:0, zIndex:60 }}>
-          <div onClick={() => setShowDetail(null)} style={{ position:"absolute", inset:0, background:"rgba(44,36,23,0.4)" }} />
-          <div className="detail-enter" style={{
-            position:"absolute", bottom:0, left:"50%", transform:"translateX(-50%)",
-            width:"100%", maxWidth:430, background:"#fff",
-            borderRadius:"26px 26px 0 0", padding:"0 24px",
-            paddingBottom:"max(40px, env(safe-area-inset-bottom, 0px) + 24px)"
-          }}>
-            <div style={{ width:36, height:4, background:"#E0D8CE", borderRadius:2, margin:"12px auto 20px" }} />
-            <div style={{ textAlign:"center", marginBottom:14 }}>
-              <div style={{ width:76, height:76, borderRadius:22, background:"#F2EFE9", display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:38 }}>
-                {showDetail.emoji}
-              </div>
-            </div>
-            <h2 style={{ textAlign:"center", fontSize:21, fontWeight:800, color:"#2C2417", marginBottom:6, lineHeight:1.3 }}>{showDetail.title}</h2>
-            {showDetail.description && <p style={{ textAlign:"center", fontSize:13, color:"#8B7D6A", marginBottom:18, lineHeight:1.5 }}>{showDetail.description}</p>}
-            <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap", marginBottom:20 }}>
-              <span style={{ fontSize:12, fontWeight:600, color:"#6B5E4A", background:"#F2EFE9", padding:"6px 13px", borderRadius:100 }}>{CAT_EMOJI[showDetail.category]} {showDetail.category}</span>
-              {showDetail.cookTime && <span style={{ fontSize:12, fontWeight:600, color:"#6B5E4A", background:"#F2EFE9", padding:"6px 13px", borderRadius:100 }}>⏱ {showDetail.cookTime}</span>}
-              <span style={{ fontSize:12, fontWeight:600, color:DIFF_COLOR[showDetail.difficulty], background:(DIFF_COLOR[showDetail.difficulty]||"#ccc")+"20", padding:"6px 13px", borderRadius:100 }}>{showDetail.difficulty}</span>
-            </div>
-            <div style={{ background:"#F9F7F4", borderRadius:13, padding:"12px 14px", marginBottom:14 }}>
-              <p style={{ fontSize:10, color:"#A8997E", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:3 }}>저장된 링크</p>
-              <p style={{ fontSize:12, color:"#6B5E4A", wordBreak:"break-all", lineHeight:1.4 }}>{showDetail.url}</p>
-              <p style={{ fontSize:10, color:"#C4BAB0", marginTop:4 }}>{showDetail.savedAt} 저장</p>
-            </div>
-            <a href={showDetail.url} target="_blank" rel="noopener noreferrer" style={{
-              display:"block", padding:"16px", borderRadius:14, background:"#2C2417",
-              color:"#F2EFE9", fontSize:16, fontWeight:700, textAlign:"center", textDecoration:"none", marginBottom:10
-            }}>🔗 레시피 보러 가기</a>
-            <button onClick={() => deleteRecipe(showDetail.id)} style={{
-              width:"100%", padding:"14px", borderRadius:14, border:"none",
-              background:"#FFF0F0", color:"#FF3B30", fontSize:14, fontWeight:600, cursor:"pointer"
-            }}>삭제하기</button>
-          </div>
-        </div>
-      )}
     </div>
-  );
+
+    {/* 카테고리 */}
+    <div style={{display:"flex",gap:8,overflowX:"auto",padding:"12px 0 16px",margin:"0 -20px",paddingLeft:20,paddingRight:20}}>
+      {CATS.map(cat=>(
+        <button key={cat} className="cat-btn" onClick={()=>setActiveCat(cat)} style={{
+          padding:"7px 14px",borderRadius:100,border:"none",cursor:"pointer",
+          fontSize:13,fontWeight:600,flexShrink:0,
+          background:activeCat===cat?"#2C2417":"#E8E3DA",
+          color:activeCat===cat?"#F2EFE9":"#6B5E4A"
+        }}>{cat!=="전체"&&CAT_EMOJI[cat]+" "}{cat}</button>
+      ))}
+    </div>
+  </div>
+
+  {/* 리스트 */}
+  <div style={{padding:"0 16px 110px"}}>
+    {filtered.length===0 ? (
+      <div style={{textAlign:"center",padding:"72px 20px",color:"#A8997E"}}>
+        <div style={{fontSize:52,marginBottom:12}}>🍽️</div>
+        <p style={{fontSize:17,fontWeight:700,color:"#6B5E4A",marginBottom:6}}>아직 저장된 레시피가 없어요</p>
+        <p style={{fontSize:14,lineHeight:1.7}}>+ 버튼을 눌러<br/>레시피 링크를 붙여넣어보세요</p>
+      </div>
+    ) : filtered.map(r=>(
+      <div key={r.id} className="card" onClick={()=>setDetail(r)} style={{
+        background:"#fff",borderRadius:18,padding:"15px",marginBottom:10,
+        boxShadow:"0 2px 10px rgba(44,36,23,0.06)",cursor:"pointer",
+        display:"flex",gap:12,alignItems:"center"
+      }}>
+        <div style={{width:50,height:50,borderRadius:13,background:"#F2EFE9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>
+          {r.emoji}
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <p style={{fontSize:15,fontWeight:700,color:"#2C2417",lineHeight:1.35,
+            overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",
+            WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{r.title}</p>
+          <p style={{fontSize:11,color:"#B0A494",marginTop:4}}>{CAT_EMOJI[r.category]} {r.category} · {r.savedAt}</p>
+        </div>
+        <span style={{color:"#D4C9B5",fontSize:18,flexShrink:0}}>›</span>
+      </div>
+    ))}
+  </div>
+
+  {/* FAB */}
+  <button className="fab" onClick={()=>setShowAdd(true)} style={{
+    position:"fixed",
+    bottom:"max(28px, env(safe-area-inset-bottom, 0px) + 20px)",
+    left:"50%",transform:"translateX(-50%) translateX(90px)",
+    width:58,height:58,borderRadius:29,border:"none",
+    background:"#2C2417",color:"#F2EFE9",fontSize:28,cursor:"pointer",
+    display:"flex",alignItems:"center",justifyContent:"center",
+    boxShadow:"0 4px 20px rgba(44,36,23,0.35)"
+  }}>+</button>
+
+  {/* 추가 시트 */}
+  {showAdd && <AddSheet onClose={()=>setShowAdd(false)} onAdd={handleAdd}/>}
+
+  {/* 상세 시트 */}
+  {detail && (
+    <DetailSheet
+      recipe={detail}
+      onClose={()=>setDetail(null)}
+      onDelete={handleDelete}
+      onUpdate={handleUpdate}
+    />
+  )}
+</div>
+```
+
+);
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+function AddSheet({ onClose, onAdd }) {
+const [url, setUrl] = useState(””);
+const ref = useRef();
+
+const handleSave = () => {
+if (!url.trim()) return;
+onAdd(url);
+};
+
+return (
+<div style={{position:“fixed”,inset:0,zIndex:50}}>
+<div onClick={onClose} style={{position:“absolute”,inset:0,background:“rgba(44,36,23,0.45)”}}/>
+<div className=“sheet-enter” style={{
+position:“absolute”,bottom:0,left:“50%”,transform:“translateX(-50%)”,
+width:“100%”,maxWidth:430,background:”#fff”,
+borderRadius:“26px 26px 0 0”,
+padding:“0 24px max(36px, env(safe-area-inset-bottom, 0px) + 20px)”
+}}>
+<div style={{width:36,height:4,background:”#E0D8CE”,borderRadius:2,margin:“12px auto 24px”}}/>
+<h2 style={{fontSize:22,fontWeight:800,color:”#2C2417”,marginBottom:6}}>링크 추가</h2>
+<p style={{fontSize:13,color:”#A8997E”,marginBottom:18}}>레시피 링크만 붙여넣으면 바로 저장돼요</p>
+<input
+ref={ref}
+value={url}
+onChange={e=>setUrl(e.target.value)}
+onKeyDown={e=>e.key===“Enter”&&handleSave()}
+placeholder=“https://recipe.naver.com/…”
+autoFocus
+style={{
+width:“100%”,padding:“16px”,borderRadius:14,
+border:“2px solid #EDE8E0”,fontSize:15,
+color:”#2C2417”,background:”#F9F7F4”,fontFamily:“inherit”
+}}
+/>
+<button onClick={handleSave} disabled={!url.trim()} style={{
+width:“100%”,padding:“17px”,borderRadius:14,border:“none”,marginTop:12,
+background:url.trim()?”#2C2417”:”#E0D8CE”,
+color:url.trim()?”#F2EFE9”:”#A8997E”,
+fontSize:16,fontWeight:700,
+cursor:url.trim()?“pointer”:“not-allowed”,fontFamily:“inherit”
+}}>저장하기</button>
+<p style={{textAlign:“center”,fontSize:11,color:”#C4BAB0”,marginTop:10}}>
+저장 후 이름·카테고리 수정 가능해요
+</p>
+</div>
+</div>
+);
+}
+
+function DetailSheet({ recipe, onClose, onDelete, onUpdate }) {
+const [editing, setEditing] = useState(false);
+const [title, setTitle] = useState(recipe.title);
+const [category, setCategory] = useState(recipe.category);
+const [emoji, setEmoji] = useState(recipe.emoji);
+
+const handleSaveEdit = () => {
+onUpdate(recipe.id, {title, category, emoji});
+setEditing(false);
+};
+
+return (
+<div style={{position:“fixed”,inset:0,zIndex:60}}>
+<div onClick={onClose} style={{position:“absolute”,inset:0,background:“rgba(44,36,23,0.45)”}}/>
+<div className=“sheet-enter” style={{
+position:“absolute”,bottom:0,left:“50%”,transform:“translateX(-50%)”,
+width:“100%”,maxWidth:430,background:”#fff”,
+borderRadius:“26px 26px 0 0”,
+padding:“0 24px max(40px, env(safe-area-inset-bottom, 0px) + 24px)”,
+maxHeight:“85vh”,overflowY:“auto”
+}}>
+<div style={{width:36,height:4,background:”#E0D8CE”,borderRadius:2,margin:“12px auto 20px”}}/>
+
+```
+    {editing ? (
+      <>
+        {/* 이모지 선택 */}
+        <p style={{fontSize:12,fontWeight:700,color:"#6B5E4A",marginBottom:8,textAlign:"center"}}>이모지</p>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center",marginBottom:16}}>
+          {FOOD_EMOJIS.map(e=>(
+            <button key={e} onClick={()=>setEmoji(e)} style={{
+              width:38,height:38,borderRadius:10,border:"2px solid",fontSize:18,cursor:"pointer",
+              background:emoji===e?"#F2EFE9":"transparent",
+              borderColor:emoji===e?"#2C2417":"transparent",fontFamily:"inherit"
+            }}>{e}</button>
+          ))}
+        </div>
+        <p style={{fontSize:12,fontWeight:700,color:"#6B5E4A",marginBottom:6}}>이름</p>
+        <input value={title} onChange={e=>setTitle(e.target.value)}
+          style={{width:"100%",padding:"13px",borderRadius:12,border:"2px solid #EDE8E0",
+            fontSize:15,color:"#2C2417",background:"#F9F7F4",fontFamily:"inherit",marginBottom:12}}/>
+        <p style={{fontSize:12,fontWeight:700,color:"#6B5E4A",marginBottom:6}}>카테고리</p>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:18}}>
+          {CATS.slice(1).map(c=>(
+            <button key={c} onClick={()=>setCategory(c)} style={{
+              padding:"7px 13px",borderRadius:100,border:"2px solid",cursor:"pointer",
+              fontSize:13,fontWeight:600,fontFamily:"inherit",
+              background:category===c?"#2C2417":"transparent",
+              borderColor:category===c?"#2C2417":"#E0D8CE",
+              color:category===c?"#F2EFE9":"#6B5E4A"
+            }}>{CAT_EMOJI[c]} {c}</button>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={()=>setEditing(false)} style={{
+            flex:1,padding:"14px",borderRadius:14,border:"2px solid #E0D8CE",
+            background:"transparent",color:"#6B5E4A",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"
+          }}>취소</button>
+          <button onClick={handleSaveEdit} style={{
+            flex:2,padding:"14px",borderRadius:14,border:"none",
+            background:"#2C2417",color:"#F2EFE9",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"
+          }}>저장</button>
+        </div>
+      </>
+    ) : (
+      <>
+        <div style={{textAlign:"center",marginBottom:12}}>
+          <div style={{width:68,height:68,borderRadius:20,background:"#F2EFE9",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:34}}>
+            {recipe.emoji}
+          </div>
+        </div>
+        <h2 style={{textAlign:"center",fontSize:19,fontWeight:800,color:"#2C2417",marginBottom:8,lineHeight:1.35}}>{recipe.title}</h2>
+        <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:18}}>
+          <span style={{fontSize:12,fontWeight:600,color:"#6B5E4A",background:"#F2EFE9",padding:"5px 12px",borderRadius:100}}>{CAT_EMOJI[recipe.category]} {recipe.category}</span>
+          <span style={{fontSize:12,fontWeight:600,color:"#A8997E",background:"#F2EFE9",padding:"5px 12px",borderRadius:100}}>{recipe.savedAt}</span>
+        </div>
+        <div style={{background:"#F9F7F4",borderRadius:12,padding:"12px 14px",marginBottom:14}}>
+          <p style={{fontSize:10,color:"#A8997E",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>링크</p>
+          <p style={{fontSize:12,color:"#6B5E4A",wordBreak:"break-all",lineHeight:1.4}}>{recipe.url}</p>
+        </div>
+        <a href={recipe.url} target="_blank" rel="noopener noreferrer" style={{
+          display:"block",padding:"16px",borderRadius:14,background:"#2C2417",
+          color:"#F2EFE9",fontSize:16,fontWeight:700,textAlign:"center",textDecoration:"none",marginBottom:10
+        }}>🔗 레시피 보러 가기</a>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={()=>setEditing(true)} style={{
+            flex:1,padding:"13px",borderRadius:14,border:"2px solid #E0D8CE",
+            background:"transparent",color:"#6B5E4A",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"
+          }}>✏️ 수정</button>
+          <button onClick={()=>onDelete(recipe.id)} style={{
+            flex:1,padding:"13px",borderRadius:14,border:"none",
+            background:"#FFF0F0",color:"#FF3B30",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"
+          }}>삭제</button>
+        </div>
+      </>
+    )}
+  </div>
+</div>
+```
+
+);
+}
+
+ReactDOM.createRoot(document.getElementById(“root”)).render(<App/>);
 </script>
+
 </body>
 </html>
