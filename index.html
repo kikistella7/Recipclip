@@ -118,47 +118,51 @@
 const CATS=["전체","한식","양식","일식","중식","베이킹","샐러드","간식","기타"];
 const CE={"한식":"🍲","양식":"🍝","일식":"🍣","중식":"🥢","베이킹":"🧁","샐러드":"🥗","간식":"🍿","기타":"🍽️"};
 const EM=["🍜","🍱","🥘","🍛","🥗","🍝","🍲","🥩","🍗","🧆","🥞","🍳","🫕","🥙","🧇","🍤"];
-const API="https://jsonblob.com/api/jsonBlob";
+const KVDB="https://kvdb.io/QmXuNELQsxvDnKwFZpgvna";
 
 let recipes=[];
 let cat="전체";
 let editEmoji="🍽️";
 let editCat="기타";
-let blobId=localStorage.getItem("rcb_blobid")||"";
+let userKey=localStorage.getItem("rcb_userkey")||"";
 let syncing=false;
 
 // ── 로컬 저장 ──
 function loadLocal(){try{recipes=JSON.parse(localStorage.getItem("rcb_v4")||"[]");}catch{recipes=[];}}
 function saveLocal(){localStorage.setItem("rcb_v4",JSON.stringify(recipes));}
 
-// ── 클라우드 ──
-async function createBlob(){
-  try{
-    const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({recipes})});
-    if(!res.ok)return;
-    const loc=res.headers.get("Location")||"";
-    blobId=loc.split("/").pop();
-    localStorage.setItem("rcb_blobid",blobId);
-    renderKey();
-  }catch{}
+// ── 키 생성 ──
+function genKey(){
+  const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let k="";
+  for(let i=0;i<12;i++){
+    if(i>0&&i%4===0)k+="-";
+    k+=chars[Math.floor(Math.random()*chars.length)];
+  }
+  return k;
 }
 
+// ── 클라우드 ──
 async function syncUp(){
-  if(!blobId||syncing)return;
+  if(!userKey||syncing)return;
   syncing=true; setCloudIcon("⏫");
   try{
-    await fetch(API+"/"+blobId,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({recipes})});
+    await fetch(KVDB+"/"+userKey,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(recipes)
+    });
     setCloudIcon("☁️");
   }catch{setCloudIcon("⚠️");}
   syncing=false;
 }
 
-async function syncDown(id){
+async function syncDown(key){
   try{
-    const res=await fetch(API+"/"+id);
+    const res=await fetch(KVDB+"/"+key);
     if(!res.ok)return null;
-    const json=await res.json();
-    return json.recipes||null;
+    const data=await res.json();
+    return Array.isArray(data)?data:null;
   }catch{return null;}
 }
 
@@ -169,7 +173,7 @@ function setCloudIcon(icon){
 
 function renderKey(){
   const el=document.getElementById("user-key");
-  if(el) el.textContent=blobId?formatKey(blobId):"키 없음";
+  if(el) el.textContent=userKey||"키 없음";
 }
 
 function formatKey(id){
@@ -313,7 +317,7 @@ function openSettings(){
     <h2>설정</h2>
     <div class="lbox" style="margin-bottom:20px;">
       <div class="llabel">내 동기화 키</div>
-      <div style="font-size:20px;font-weight:800;color:#2C2417;letter-spacing:2px;margin:6px 0;" id="key-display">${blobId?formatKey(blobId):"생성 중..."}</div>
+      <div style="font-size:20px;font-weight:800;color:#2C2417;letter-spacing:2px;margin:6px 0;" id="key-display">${userKey||"생성 중..."}</div>
       <div style="font-size:11px;color:#A8997E;line-height:1.5;">앱 재설치 시 이 키로 데이터를 복원할 수 있어요.<br>메모해두거나 스크린샷 찍어두세요 📸</div>
     </div>
     <p style="font-size:12px;font-weight:700;color:#6B5E4A;margin-bottom:8px;">다른 기기에서 복원하기</p>
@@ -330,15 +334,15 @@ async function doRestore(){
   const msg=document.getElementById("restore-msg");
   if(!raw){msg.textContent="키를 입력해주세요.";return;}
   msg.textContent="복원 중...";
-  const data=await syncDown(raw);
+  const data=await syncDown(raw.replace(/-/g,""));
   if(!data){msg.style.color="#FF3B30";msg.textContent="키를 찾을 수 없어요. 다시 확인해보세요.";return;}
   recipes=data;
-  blobId=raw;
-  localStorage.setItem("rcb_blobid",blobId);
+  userKey=raw;
+  localStorage.setItem("rcb_userkey",userKey);
   saveLocal();
   msg.style.color="#34C759";
   msg.textContent=`✓ ${recipes.length}개 레시피 복원 완료!`;
-  render();renderKey();
+  render();document.getElementById("user-key") && (document.getElementById("user-key").textContent=userKey); document.getElementById("key-display") && (document.getElementById("key-display").textContent=userKey);
   setTimeout(closeOverlay,1200);
 }
 
@@ -350,13 +354,13 @@ document.getElementById("user-key").onclick=openSettings;
 loadLocal();
 render();
 
-// 블롭 없으면 자동 생성, 있으면 백그라운드 동기화
-if(!blobId){
-  createBlob();
-}else{
-  renderKey();
-  setCloudIcon("☁️");
+// 키 없으면 자동 생성
+if(!userKey){
+  userKey=genKey();
+  localStorage.setItem("rcb_userkey",userKey);
 }
+renderKey();
+setCloudIcon("☁️");
 </script>
 </body>
 </html>
