@@ -102,9 +102,10 @@
         <div class="header-sub">My Kitchen</div>
         <div class="header-title">레시피 북</div>
       </div>
-      <div class="header-right">
-        <span class="header-emoji">📖</span>
+      <div class="header-right" style="cursor:pointer;">
+        <span id="cloud-icon" style="font-size:18px;display:block;text-align:right;">☁️</span>
         <div class="header-count" id="count">0개 저장됨</div>
+        <div id="user-key" style="font-size:10px;color:#C4BAB0;margin-top:2px;cursor:pointer;"></div>
       </div>
     </div>
     <div id="cats"></div>
@@ -117,70 +118,83 @@
 const CATS=["전체","한식","양식","일식","중식","베이킹","샐러드","간식","기타"];
 const CE={"한식":"🍲","양식":"🍝","일식":"🍣","중식":"🥢","베이킹":"🧁","샐러드":"🥗","간식":"🍿","기타":"🍽️"};
 const EM=["🍜","🍱","🥘","🍛","🥗","🍝","🍲","🥩","🍗","🧆","🥞","🍳","🫕","🥙","🧇","🍤"];
+const API="https://jsonblob.com/api/jsonBlob";
 
 let recipes=[];
 let cat="전체";
 let editEmoji="🍽️";
 let editCat="기타";
+let blobId=localStorage.getItem("rcb_blobid")||"";
+let syncing=false;
 
-function load(){try{recipes=JSON.parse(localStorage.getItem("rcb_v4")||"[]");}catch{recipes=[];}}
-function save(){localStorage.setItem("rcb_v4",JSON.stringify(recipes));}
+// ── 로컬 저장 ──
+function loadLocal(){try{recipes=JSON.parse(localStorage.getItem("rcb_v4")||"[]");}catch{recipes=[];}}
+function saveLocal(){localStorage.setItem("rcb_v4",JSON.stringify(recipes));}
 
-function cleanTitle(raw){
-  if(!raw) return null;
-  const SITES=["만개의레시피","10000recipe","네이버","naver","유튜브","youtube","카카오","kakao","tistory","instagram","해먹남녀","haemukja","쿠킹로그","cookinglog","다음","daum","구글","google"];
-  const isSite=s=>SITES.some(x=>s.toLowerCase().replace(/\s/g,"").includes(x.toLowerCase()));
-
-  // 구분자로 분리 후 사이트명 아닌 파트 선택
-  const parts=raw.split(/\s*[|ㅣ:：·\-—]\s*/).map(p=>p.trim()).filter(p=>p.length>=2);
-  const best=parts.find(p=>!isSite(p)) || parts[0] || raw;
-
-  let t=best
-    .replace(/\[.*?\]/g,"").replace(/【.*?】/g,"").replace(/\(.*?\)/g,"")
-    .replace(/^\s*\d+\.\s*/,"")
-    .replace(/\s*(황금레시피|초간단|간단|쉬운|맛있는|황금|레시피|만들기)\s*$/,"")
-    .trim();
-
-  // 그래도 사이트명이면 null
-  if(isSite(t)) return null;
-  return t.length>=2 ? t : null;
+// ── 클라우드 ──
+async function createBlob(){
+  try{
+    const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({recipes})});
+    if(!res.ok)return;
+    const loc=res.headers.get("Location")||"";
+    blobId=loc.split("/").pop();
+    localStorage.setItem("rcb_blobid",blobId);
+    renderKey();
+  }catch{}
 }
 
-async function fetchTitle(url){
+async function syncUp(){
+  if(!blobId||syncing)return;
+  syncing=true; setCloudIcon("⏫");
   try{
-    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    await fetch(API+"/"+blobId,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({recipes})});
+    setCloudIcon("☁️");
+  }catch{setCloudIcon("⚠️");}
+  syncing=false;
+}
+
+async function syncDown(id){
+  try{
+    const res=await fetch(API+"/"+id);
+    if(!res.ok)return null;
     const json=await res.json();
-    const html=json?.contents||"";
-    const og=html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
-             ||html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
-    const titleTag=html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const raw=(og?.[1]||titleTag?.[1]||"").trim();
-    return cleanTitle(raw);
-  }catch{ return null; }
+    return json.recipes||null;
+  }catch{return null;}
 }
 
-function fallbackTitle(url){
-  try{
-    const u=new URL(url.startsWith("http")?url:"https://"+url);
-    const dom=u.hostname.replace("www.","");
-    const map={"10000recipe.com":"만개의레시피","recipe.naver.com":"네이버레시피","youtube.com":"유튜브","youtu.be":"유튜브","haemukja.com":"해먹남녀","blog.naver.com":"네이버블로그","instagram.com":"인스타그램"};
-    return map[dom]||dom.split(".")[0]||"레시피";
-  }catch{return "레시피";}
+function setCloudIcon(icon){
+  const el=document.getElementById("cloud-icon");
+  if(el)el.textContent=icon;
 }
 
+function renderKey(){
+  const el=document.getElementById("user-key");
+  if(el) el.textContent=blobId?formatKey(blobId):"키 없음";
+}
+
+function formatKey(id){
+  // 길면 앞 12자만
+  const s=String(id).replace(/\D/g,"").slice(0,12);
+  return s.match(/.{1,4}/g)?.join("-")||id;
+}
+
+// ── 저장 ──
+function save(){
+  saveLocal();
+  syncUp();
+}
+
+// ── 유틸 ──
 function rndEmoji(){return EM[Math.floor(Math.random()*EM.length)];}
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
 
+// ── 렌더 ──
 function render(){
   const filtered=cat==="전체"?recipes:recipes.filter(r=>r.cat===cat);
   document.getElementById("count").textContent=recipes.length+"개 저장됨";
-
-  // cats
   document.getElementById("cats").innerHTML=CATS.map(c=>
     `<button class="cat-btn${c===cat?" active":""}" onclick="setCat('${c}')">${c!=="전체"?CE[c]+" ":""}${c}</button>`
   ).join("");
-
-  // list
   const el=document.getElementById("list");
   if(!filtered.length){
     el.innerHTML=`<div id="empty"><div class="big">🍽️</div><div class="t1">아직 저장된 레시피가 없어요</div><div class="t2">+ 버튼으로<br>링크를 붙여넣어보세요</div></div>`;
@@ -199,8 +213,8 @@ function render(){
 
 function setCat(c){cat=c;render();}
 
+// ── 오버레이 ──
 function closeOverlay(){document.getElementById("ov")?.remove();}
-
 function openOverlay(html){
   closeOverlay();
   const d=document.createElement("div");
@@ -210,12 +224,12 @@ function openOverlay(html){
   d.addEventListener("click",e=>{if(e.target.id==="ov")closeOverlay();});
 }
 
+// ── 추가 ──
 function checkAddBtn(){
   const u=document.getElementById("ui")?.value.trim();
   const n=document.getElementById("ni")?.value.trim();
   if(document.getElementById("sb")) document.getElementById("sb").disabled=!(u&&n);
 }
-
 function openAdd(){
   openOverlay(`<div class="sheet"><div class="handle"></div><div class="si">
     <h2>링크 추가</h2>
@@ -227,17 +241,16 @@ function openAdd(){
   </div></div>`);
   setTimeout(()=>document.getElementById("ni").focus(),50);
 }
-
 function addRecipe(){
   const name=document.getElementById("ni")?.value.trim();
-  const inp=document.getElementById("ui");
-  let url=inp?.value.trim();
+  let url=document.getElementById("ui")?.value.trim();
   if(!name||!url)return;
   if(!url.startsWith("http"))url="https://"+url;
   recipes.unshift({id:Date.now().toString(),url,title:name,cat:"한식",emoji:rndEmoji(),date:new Date().toLocaleDateString("ko-KR")});
   save();closeOverlay();render();
 }
 
+// ── 상세 ──
 function openDetail(id){
   const r=recipes.find(x=>x.id===id);if(!r)return;
   openOverlay(`<div class="sheet"><div class="handle"></div><div class="si" id="di">
@@ -252,13 +265,13 @@ function openDetail(id){
     </div>
   </div></div>`);
 }
-
 function delRecipe(id){
   if(!confirm("삭제할까요?"))return;
   recipes=recipes.filter(r=>r.id!==id);
   save();closeOverlay();render();
 }
 
+// ── 수정 ──
 function openEdit(id){
   const r=recipes.find(x=>x.id===id);if(!r)return;
   editEmoji=r.emoji;editCat=r.cat;
@@ -279,27 +292,71 @@ function openEdit(id){
       <button style="flex:2;padding:14px;border-radius:14px;border:none;background:#2C2417;color:#F2EFE9;font-size:14px;font-weight:700;cursor:pointer;" onclick="saveEdit('${id}')">저장</button>
     </div>`;
 }
-
 function pickE(btn,e){
   document.querySelectorAll("#ep button").forEach(b=>{b.style.borderColor="transparent";b.style.background="transparent";});
-  btn.style.borderColor="#2C2417";btn.style.background="#F2EFE9";
-  editEmoji=e;
+  btn.style.borderColor="#2C2417";btn.style.background="#F2EFE9";editEmoji=e;
 }
 function pickC(btn,c){
   document.querySelectorAll("#cp button").forEach(b=>{b.style.borderColor="#E0D8CE";b.style.background="transparent";b.style.color="#6B5E4A";});
-  btn.style.borderColor="#2C2417";btn.style.background="#2C2417";btn.style.color="#F2EFE9";
-  editCat=c;
+  btn.style.borderColor="#2C2417";btn.style.background="#2C2417";btn.style.color="#F2EFE9";editCat=c;
 }
 function saveEdit(id){
-  const t=document.getElementById("et").value.trim();
-  if(!t)return;
+  const t=document.getElementById("et").value.trim();if(!t)return;
   const r=recipes.find(x=>x.id===id);if(!r)return;
   r.title=t;r.emoji=editEmoji;r.cat=editCat;
   save();render();openDetail(id);
 }
 
+// ── 설정 (키 확인 & 복원) ──
+function openSettings(){
+  openOverlay(`<div class="sheet"><div class="handle"></div><div class="si">
+    <h2>설정</h2>
+    <div class="lbox" style="margin-bottom:20px;">
+      <div class="llabel">내 동기화 키</div>
+      <div style="font-size:20px;font-weight:800;color:#2C2417;letter-spacing:2px;margin:6px 0;" id="key-display">${blobId?formatKey(blobId):"생성 중..."}</div>
+      <div style="font-size:11px;color:#A8997E;line-height:1.5;">앱 재설치 시 이 키로 데이터를 복원할 수 있어요.<br>메모해두거나 스크린샷 찍어두세요 📸</div>
+    </div>
+    <p style="font-size:12px;font-weight:700;color:#6B5E4A;margin-bottom:8px;">다른 기기에서 복원하기</p>
+    <div style="display:flex;gap:8px;">
+      <input class="inp" id="restore-key" placeholder="키 입력 (예: 1234-5678-9012)" style="flex:1;padding:13px;font-size:14px;"/>
+      <button onclick="doRestore()" style="padding:13px 16px;border-radius:12px;border:none;background:#2C2417;color:#F2EFE9;font-size:14px;font-weight:700;cursor:pointer;">복원</button>
+    </div>
+    <div id="restore-msg" style="font-size:12px;color:#A8997E;margin-top:8px;"></div>
+  </div></div>`);
+}
+
+async function doRestore(){
+  const raw=document.getElementById("restore-key").value.trim().replace(/-/g,"");
+  const msg=document.getElementById("restore-msg");
+  if(!raw){msg.textContent="키를 입력해주세요.";return;}
+  msg.textContent="복원 중...";
+  const data=await syncDown(raw);
+  if(!data){msg.style.color="#FF3B30";msg.textContent="키를 찾을 수 없어요. 다시 확인해보세요.";return;}
+  recipes=data;
+  blobId=raw;
+  localStorage.setItem("rcb_blobid",blobId);
+  saveLocal();
+  msg.style.color="#34C759";
+  msg.textContent=`✓ ${recipes.length}개 레시피 복원 완료!`;
+  render();renderKey();
+  setTimeout(closeOverlay,1200);
+}
+
+// ── 초기화 ──
 document.getElementById("fab").onclick=openAdd;
-load();render();
+document.getElementById("cloud-icon").onclick=openSettings;
+document.getElementById("user-key").onclick=openSettings;
+
+loadLocal();
+render();
+
+// 블롭 없으면 자동 생성, 있으면 백그라운드 동기화
+if(!blobId){
+  createBlob();
+}else{
+  renderKey();
+  setCloudIcon("☁️");
+}
 </script>
 </body>
 </html>
