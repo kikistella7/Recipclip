@@ -234,7 +234,7 @@ function addRecipe(){
   let url=inp?.value.trim();
   if(!name||!url)return;
   if(!url.startsWith("http"))url="https://"+url;
-  recipes.unshift({id:Date.now().toString(),url,title:name,cat:"기타",emoji:rndEmoji(),date:new Date().toLocaleDateString("ko-KR")});
+  recipes.unshift({id:Date.now().toString(),url,title:name,cat:"한식",emoji:rndEmoji(),date:new Date().toLocaleDateString("ko-KR")});
   save();closeOverlay();render();
 }
 
