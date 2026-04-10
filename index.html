@@ -148,9 +148,13 @@ function cleanTitle(raw){
 
 async function fetchTitle(url){
   try{
-    const res=await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}&meta=false`);
+    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
     const json=await res.json();
-    const raw=json?.data?.title||"";
+    const html=json?.contents||"";
+    const og=html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+             ||html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
+    const titleTag=html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const raw=(og?.[1]||titleTag?.[1]||"").trim();
     return cleanTitle(raw);
   }catch{ return null; }
 }
