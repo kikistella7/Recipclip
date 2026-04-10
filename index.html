@@ -210,30 +210,31 @@ function openOverlay(html){
   d.addEventListener("click",e=>{if(e.target.id==="ov")closeOverlay();});
 }
 
+function checkAddBtn(){
+  const u=document.getElementById("ui")?.value.trim();
+  const n=document.getElementById("ni")?.value.trim();
+  if(document.getElementById("sb")) document.getElementById("sb").disabled=!(u&&n);
+}
+
 function openAdd(){
   openOverlay(`<div class="sheet"><div class="handle"></div><div class="si">
     <h2>링크 추가</h2>
-    <p class="sub">레시피 링크만 붙여넣으면 바로 저장돼요</p>
-    <input class="inp" id="ui" placeholder="https://recipe.naver.com/..." oninput="document.getElementById('sb').disabled=!this.value.trim()"/>
-    <button class="bp" id="sb" onclick="addRecipe()" disabled>저장하기</button>
-    <div class="hint">저장 후 이름·카테고리 수정 가능해요</div>
+    <p style="font-size:12px;font-weight:700;color:#6B5E4A;margin-bottom:6px;">요리 이름</p>
+    <input class="inp" id="ni" placeholder="예: 백종원 된장찌개" oninput="checkAddBtn()" style="margin-bottom:12px;"/>
+    <p style="font-size:12px;font-weight:700;color:#6B5E4A;margin-bottom:6px;">링크 URL</p>
+    <input class="inp" id="ui" placeholder="https://recipe.naver.com/..." oninput="checkAddBtn()"/>
+    <button class="bp" id="sb" onclick="addRecipe()" disabled style="margin-top:14px;">저장하기</button>
   </div></div>`);
-  const inp=document.getElementById("ui");
-  inp.addEventListener("keydown",e=>{if(e.key==="Enter"&&inp.value.trim())addRecipe();});
-  setTimeout(()=>inp.focus(),50);
+  setTimeout(()=>document.getElementById("ni").focus(),50);
 }
 
-async function addRecipe(){
+function addRecipe(){
+  const name=document.getElementById("ni")?.value.trim();
   const inp=document.getElementById("ui");
-  let url=inp.value.trim();
-  if(!url)return;
+  let url=inp?.value.trim();
+  if(!name||!url)return;
   if(!url.startsWith("http"))url="https://"+url;
-  // 로딩 표시
-  const btn=document.getElementById("sb");
-  btn.disabled=true; btn.textContent="분석 중...";
-  const fetched=await fetchTitle(url);
-  const title=fetched||fallbackTitle(url);
-  recipes.unshift({id:Date.now().toString(),url,title,cat:"기타",emoji:rndEmoji(),date:new Date().toLocaleDateString("ko-KR")});
+  recipes.unshift({id:Date.now().toString(),url,title:name,cat:"기타",emoji:rndEmoji(),date:new Date().toLocaleDateString("ko-KR")});
   save();closeOverlay();render();
 }
 
