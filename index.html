@@ -128,12 +128,21 @@ function save(){localStorage.setItem("rcb_v4",JSON.stringify(recipes));}
 
 function cleanTitle(raw){
   if(!raw) return null;
-  let t = raw
-    .replace(/\s*[|ㅣ:：·\-—]\s*.{0,30}(레시피|블로그|요리|만들기|recipe|blog|naver|youtube|kakao|tistory|instagram|\.com|\.kr).*$/i,"")
-    .replace(/\s*(황금레시피|초간단|간단|쉬운|맛있는|황금|레시피|만들기)\s*$/,"")
+  const SITES=["만개의레시피","10000recipe","네이버","naver","유튜브","youtube","카카오","kakao","tistory","instagram","해먹남녀","haemukja","쿠킹로그","cookinglog","다음","daum","구글","google"];
+  const isSite=s=>SITES.some(x=>s.toLowerCase().replace(/\s/g,"").includes(x.toLowerCase()));
+
+  // 구분자로 분리 후 사이트명 아닌 파트 선택
+  const parts=raw.split(/\s*[|ㅣ:：·\-—]\s*/).map(p=>p.trim()).filter(p=>p.length>=2);
+  const best=parts.find(p=>!isSite(p)) || parts[0] || raw;
+
+  let t=best
     .replace(/\[.*?\]/g,"").replace(/【.*?】/g,"").replace(/\(.*?\)/g,"")
-    .replace(/^\s*\d+\.\s*/,"").trim();
-  if(t.length>20){ const s=t.split(/[,，]/)[0].trim(); if(s.length>=4) t=s; }
+    .replace(/^\s*\d+\.\s*/,"")
+    .replace(/\s*(황금레시피|초간단|간단|쉬운|맛있는|황금|레시피|만들기)\s*$/,"")
+    .trim();
+
+  // 그래도 사이트명이면 null
+  if(isSite(t)) return null;
   return t.length>=2 ? t : null;
 }
 
